@@ -1,0 +1,9 @@
+PyQt5
+pygame
+mutagen
+Pillow
+numpy
+pydub
+sounddevice
+soundfile
+pyinstaller
