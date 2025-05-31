@@ -1,10 +1,15 @@
 import sounddevice as sd
 import soundfile as sf
 import threading
+from PyQt5.QtCore import QObject, pyqtSignal
 
 
-class AudioEngine:
-    def __init__(self):
+class AudioEngine(QObject):
+    playback_finished = pyqtSignal()
+
+    def __init__(self, playlist=None):
+        super().__init__()
+        self.playlist = playlist
         self.stream = None
         self.data = None
         self.samplerate = None
@@ -34,12 +39,13 @@ class AudioEngine:
                 outdata[:] = 0
                 return
             end = self.position + frames
-            chunk = self.data[self.position:end]
+            chunk = self.data[self.position : end]
             if len(chunk) < frames:
-                outdata[:len(chunk)] = chunk * self.volume
-                outdata[len(chunk):] = 0
+                outdata[: len(chunk)] = chunk * self.volume
+                outdata[len(chunk) :] = 0
                 self.playing = False
                 self.stream.stop()
+                self.playback_finished.emit()
             else:
                 outdata[:] = chunk * self.volume
             if self.callback:

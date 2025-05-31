@@ -8,28 +8,38 @@ from PyQt5.QtWidgets import (
     QFileDialog,
     QLabel,
     QSlider,
-    QCheckBox,
+    QToolButton,
 )
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import Qt, QTimer, QSize
+from PyQt5.QtGui import QPixmap, QIcon
 from player.audio_engine import AudioEngine
 from player.playlist import Playlist
 from utils.metadata_utils import get_metadata_and_album_art
 from ui.visualizer import VisualizerWidget
 from pydub import AudioSegment
 import numpy as np
-from PyQt5.QtGui import QIcon
+import os
+
+
+def resource_path(relative_path):
+    # For PyInstaller compatibility
+    import sys
+
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Advanced Music Player")
-        self.setWindowIcon(QIcon("resources/icon.png"))
+        self.setWindowIcon(QIcon(resource_path("src/resources/icon.png")))
         self.setGeometry(100, 100, 700, 500)
 
-        self.audio_engine = AudioEngine()
         self.playlist = Playlist()
+        self.audio_engine = AudioEngine(self.playlist)
+        self.audio_engine.playback_finished.connect(self.on_playback_finished)
 
         self.init_ui()
 
@@ -79,23 +89,58 @@ class MainWindow(QMainWindow):
 
         # Controls
         controls = QHBoxLayout()
-        self.btn_prev = QPushButton("Prev")
-        self.btn_play = QPushButton("Play")
-        self.btn_pause = QPushButton("Pause")
-        self.btn_stop = QPushButton("Stop")
-        self.btn_next = QPushButton("Next")
-        self.btn_load = QPushButton("Load")
-        self.chk_shuffle = QCheckBox("Shuffle")
-        self.chk_repeat = QCheckBox("Repeat")
 
+        icon_size = QSize(32, 32)
+
+        self.btn_prev = QToolButton()
+        self.btn_prev.setIcon(QIcon(resource_path("src/resources/icons/prev.png")))
+        self.btn_prev.setIconSize(icon_size)
         self.btn_prev.clicked.connect(self.prev_track)
+
+        self.btn_play = QToolButton()
+        self.btn_play.setIcon(QIcon(resource_path("src/resources/icons/play.png")))
+        self.btn_play.setIconSize(icon_size)
         self.btn_play.clicked.connect(self.play_track)
+
+        self.btn_pause = QToolButton()
+        self.btn_pause.setIcon(QIcon(resource_path("src/resources/icons/pause.png")))
+        self.btn_pause.setIconSize(icon_size)
         self.btn_pause.clicked.connect(self.pause_track)
+
+        self.btn_stop = QToolButton()
+        self.btn_stop.setIcon(QIcon(resource_path("src/resources/icons/stop.png")))
+        self.btn_stop.setIconSize(icon_size)
         self.btn_stop.clicked.connect(self.stop_track)
+
+        self.btn_next = QToolButton()
+        self.btn_next.setIcon(QIcon(resource_path("src/resources/icons/next.png")))
+        self.btn_next.setIconSize(icon_size)
         self.btn_next.clicked.connect(self.next_track)
+
+        self.chk_shuffle = QToolButton()
+        self.chk_shuffle.setIcon(
+            QIcon(resource_path("src/resources/icons/shuffle.png"))
+        )
+        self.chk_shuffle.setCheckable(True)
+        self.chk_shuffle.setIconSize(icon_size)
+        self.chk_shuffle.toggled.connect(self.toggle_shuffle)
+
+        self.chk_repeat = QToolButton()
+        self.chk_repeat.setIcon(QIcon(resource_path("src/resources/icons/repeat.png")))
+        self.chk_repeat.setCheckable(True)
+        self.chk_repeat.setIconSize(icon_size)
+        self.chk_repeat.toggled.connect(self.toggle_repeat)
+
+        self.chk_repeat_one = QToolButton()
+        self.chk_repeat_one.setIcon(
+            QIcon(resource_path("src/resources/icons/repeat_one.png"))
+        )
+        self.chk_repeat_one.setCheckable(True)
+        self.chk_repeat_one.setIconSize(icon_size)
+        self.chk_repeat_one.toggled.connect(self.toggle_repeat_one)
+
+        self.btn_load = QPushButton("Open")
         self.btn_load.clicked.connect(self.load_files)
-        self.chk_shuffle.stateChanged.connect(self.toggle_shuffle)
-        self.chk_repeat.stateChanged.connect(self.toggle_repeat)
 
         controls.addWidget(self.btn_prev)
         controls.addWidget(self.btn_play)
@@ -105,6 +150,7 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.btn_load)
         controls.addWidget(self.chk_shuffle)
         controls.addWidget(self.chk_repeat)
+        controls.addWidget(self.chk_repeat_one)
         controls.addWidget(self.btn_theme)
         layout.addLayout(controls)
 
@@ -123,7 +169,10 @@ class MainWindow(QMainWindow):
 
     def load_files(self):
         files, _ = QFileDialog.getOpenFileNames(
-            self, "Open Music Files", "", "Audio Files (*.mp3 *.wav *.ogg)"
+            self,
+            "Open Music Files",
+            "",
+            "Audio Files (*.mp3 *.wav *.ogg *.flac *.m4a *.aac)",
         )
         if files:
             self.playlist.add_files(files)
@@ -149,7 +198,6 @@ class MainWindow(QMainWindow):
         self.audio_engine.stop()
 
     def next_track(self):
-        # Reset visualizer immediately
         self.visualizer.set_waveform(np.zeros(1024))
         path = self.playlist.next()
         if path:
@@ -158,7 +206,6 @@ class MainWindow(QMainWindow):
             self.update_metadata(path)
 
     def prev_track(self):
-        # Reset visualizer immediately
         self.visualizer.set_waveform(np.zeros(1024))
         path = self.playlist.prev()
         if path:
@@ -169,11 +216,20 @@ class MainWindow(QMainWindow):
     def set_volume(self, value):
         self.audio_engine.set_volume(value / 100)
 
-    def toggle_shuffle(self, state):
-        self.playlist.set_shuffle(state == Qt.Checked)
+    def toggle_shuffle(self, checked):
+        self.playlist.set_shuffle(checked)
 
-    def toggle_repeat(self, state):
-        self.playlist.set_repeat(state == Qt.Checked)
+    def toggle_repeat(self, checked):
+        self.playlist.set_repeat(checked)
+        if checked:
+            self.chk_repeat_one.setChecked(False)
+            self.playlist.set_repeat_one(False)
+
+    def toggle_repeat_one(self, checked):
+        self.playlist.set_repeat_one(checked)
+        if checked:
+            self.chk_repeat.setChecked(False)
+            self.playlist.set_repeat(False)
 
     def update_metadata(self, path):
         meta, art = get_metadata_and_album_art(path)
@@ -197,7 +253,6 @@ class MainWindow(QMainWindow):
             samples = np.array(audio.get_array_of_samples())
             if audio.channels == 2:
                 samples = samples[::2]  # Take one channel for stereo
-            # Normalize and downsample for visualization
             samples = samples / np.max(np.abs(samples))
             downsampled = samples[:: max(1, len(samples) // 512)]
             self.visualizer.set_waveform(downsampled[:512])
@@ -247,3 +302,11 @@ class MainWindow(QMainWindow):
         else:
             self.set_dark_theme()
             self.btn_theme.setText("Light Mode")
+
+    def on_playback_finished(self):
+        # Handle repeat one and repeat all logic
+        if self.playlist.repeat_one:
+            self.play_track()
+        elif self.playlist.repeat_mode:
+            self.next_track()
+        # else: do nothing (stop at end of playlist)

@@ -8,6 +8,7 @@ class Playlist:
         self.index = 0
         self.shuffle_mode = False
         self.repeat_mode = False
+        self.repeat_one = False
         self._shuffled_indices = []
 
     def add_files(self, files):
@@ -29,6 +30,9 @@ class Playlist:
     def next(self):
         if not self.tracks:
             return None
+        if self.repeat_one:
+            # Stay on the same track
+            return self.tracks[self.index]
         if self.shuffle_mode:
             if not self._shuffled_indices:
                 self._reset_shuffle()
@@ -49,6 +53,8 @@ class Playlist:
             if not self._shuffled_indices:
                 self._reset_shuffle()
             self.index = self._shuffled_indices.pop(0)
+        elif self.repeat_one:
+            return self.tracks[self.index]
         else:
             self.index -= 1
             if self.index < 0:
@@ -64,6 +70,9 @@ class Playlist:
 
     def set_repeat(self, enabled):
         self.repeat_mode = enabled
+
+    def set_repeat_one(self, enabled):
+        self.repeat_one = enabled
 
     def _reset_shuffle(self):
         if self.shuffle_mode and self.tracks:
