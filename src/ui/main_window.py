@@ -34,7 +34,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Advanced Music Player")
-        self.setWindowIcon(QIcon(resource_path("src/resources/icon.png")))
+        self.setWindowIcon(QIcon(resource_path("src/resources/icon.ico")))
         self.setGeometry(100, 100, 700, 500)
 
         self.playlist = Playlist()
